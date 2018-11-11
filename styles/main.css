@@ -1,0 +1,17 @@
+body {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+body, input {
+  font: 11pt/1.3 "Helvetiva Neue", Helvetica, Arial, sans-serif;
+}
+.section {
+  background-color: lightgrey;
+  border: 1px solid black;
+  overflow: hidden;
+}
+
+input{
+  width: 100%;
+}
