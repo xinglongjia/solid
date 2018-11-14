@@ -12,7 +12,7 @@ export interface SolidProfile {
     email: string;
     fn: string;
     image: string;
-    phone: string;
+    phone: string[];
     role: string;
     organization?: string;
 }

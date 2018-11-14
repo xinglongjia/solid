@@ -8,6 +8,7 @@ declare let $rdf: any;
 import { NgForm } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 
+
 const VCARD = $rdf.Namespace('http://www.w3.org/2006/vcard/ns#');
 const FOAF = $rdf.Namespace('http://xmlns.com/foaf/0.1/');
 
@@ -69,6 +70,10 @@ export class RdfService {
     return this.getValueFromNamespace(node, VCARD, webId);
   };
 
+  getValuesFromVcard = (node: string, webId?: string): string[] | any => {
+    return this.getValuesFromNamespace(node, VCARD, webId);
+  };
+
   /**
    * Gets a node that matches the specified pattern using the FOAF onthology
    * @param {string} node FOAF predicate to apply to the $rdf.any()
@@ -91,7 +96,7 @@ export class RdfService {
     // 3. There is an old value and no new value. Ths is the delete path
     // These are separate codepaths because the system needs to know what to do in each case
     fields.map(field => {
-
+      
       let predicate = VCARD(this.getFieldName(field));
       let subject = this.getUriForField(field, me);
       let why = doc;
@@ -100,27 +105,37 @@ export class RdfService {
       let oldFieldValue = this.getOldFieldValue(field, oldProfileData);
 
       // if there's no existing home phone number or email address, we need to add one, then add the link for hasTelephone or hasEmail
-      if(!oldFieldValue && fieldValue && (field === 'phone' || field==='email')) {
+      if(!oldFieldValue && fieldValue && ((field.match(/^phone/) || field === 'email')) {
         this.addNewLinkedField(field, insertions, predicate, fieldValue, why, me);
       } else {
 
         //Add a value to be updated
-        if (oldProfileData[field] && form.value[field] && !form.controls[field].pristine) {
+        
+        if (oldProfileData[field] && form.value[field]
+          && ((field.match(/^phone/) && oldProfileData[field] !== form.value[field]) || (!form.controls[field].pristine)) {
+          
           deletions.push($rdf.st(subject, predicate, oldFieldValue, why));
           insertions.push($rdf.st(subject, predicate, fieldValue, why));
         }
 
         //Add a value to be deleted
-        else if (oldProfileData[field] && !form.value[field] && !form.controls[field].pristine) {
+        else if (oldProfileData[field] && !form.value[field]
+          && ((field.match(/^phone/) && oldProfileData[field] !== form.value[field]) || (!form.controls[field].pristine)) {
           deletions.push($rdf.st(subject, predicate, oldFieldValue, why));
         }
 
         //Add a value to be inserted
-        else if (!oldProfileData[field] && form.value[field] && !form.controls[field].pristine) {
+        else if (!oldProfileData[field] && form.value[field]
+          && ((field.match(/^phone/) && oldProfileData[field] !== form.value[field]) || (!form.controls[field].pristine)) {
           insertions.push($rdf.st(subject, predicate, fieldValue, why));
         }
       }
+      //console.log(oldProfileData[field], '====>', form.value[field]);
+      
     });
+    console.log('delete', deletions);
+    console.log('insert', insertions);
+   
 
     return {
       insertions: insertions,
@@ -136,14 +151,14 @@ export class RdfService {
     let newSubject = $rdf.sym(this.session.webId.split('#')[0] + '#' + newId);
 
     //Set new predicate, based on email or phone fields
-    let newPredicate = field === 'phone' ? $rdf.sym(VCARD('hasTelephone')) : $rdf.sym(VCARD('hasEmail'));
+    let newPredicate = field.match(/^phone/) ? $rdf.sym(VCARD('hasTelephone')) : $rdf.sym(VCARD('hasEmail'));
 
     //Add new phone or email to the pod
     insertions.push($rdf.st(newSubject, predicate, fieldValue, why));
 
     //Set the type (defaults to Home/Personal for now) and insert it into the pod as well
     //Todo: Make this dynamic
-    let type = field === 'phone' ? $rdf.literal('Home') : $rdf.literal('Personal');
+    let type = field === 'phone0' ? $rdf.literal('Home') : $rdf.literal('Personal');
     insertions.push($rdf.st(newSubject, VCARD('type'), type, why));
 
     //Add a link in #me to the email/phone number (by id)
@@ -153,10 +168,12 @@ export class RdfService {
   private getUriForField(field, me): string {
     let uriString: string;
     let uri: any;
-
+    console.log('get uri for field');
     switch(field) {
-      case 'phone':
-        uriString = this.getValueFromVcard('hasTelephone');
+      case (field.match(/^phone/) || {}).input:
+        let i = field.split('phone')[1];
+        uriString = this.getValuesFromVcard('hasTelephone')[i];
+        console.log('uriString', uriString);
         if(uriString) {
           uri = $rdf.sym(uriString);
         }
@@ -189,8 +206,8 @@ export class RdfService {
     }
 
     switch(field) {
-      case 'phone':
-        fieldValue = $rdf.sym('tel:+'+form.value[field]);
+      case (field.match(/^phone/) || {}).input:
+        fieldValue = $rdf.sym('tel:'+form.value[field]);
         break;
       case 'email':
         fieldValue = $rdf.sym('mailto:'+form.value[field]);
@@ -211,8 +228,8 @@ export class RdfService {
     }
 
     switch(field) {
-      case 'phone':
-        oldValue = $rdf.sym('tel:+'+oldProfile[field]);
+      case (field.match(/^phone/) || {}).input:
+        oldValue = $rdf.sym('tel:'+oldProfile[field]);
         break;
       case 'email':
         oldValue = $rdf.sym('mailto:'+oldProfile[field]);
@@ -229,7 +246,8 @@ export class RdfService {
     switch (field) {
       case 'company':
         return 'organization-name';
-      case 'phone':
+      case (field.match(/^phone/) || {}).input:
+        return 'value';
       case 'email':
         return 'value';
       default:
@@ -284,10 +302,18 @@ export class RdfService {
 
   //Function to get phone number. This returns only the first phone number, which is temporary. It also ignores the type.
   getPhone = () => {
-    const linkedUri = this.getValueFromVcard('hasTelephone');
-
+    const linkedUri = this.getValuesFromVcard('hasTelephone');
+    //this.store.each($rdf.sym(this.session.webId), VCARD('hasTelephone'));
+    //this.getValueFromVcard('hasTelephone');
+    console.log('LinkedUri', linkedUri);
     if(linkedUri) {
-      return this.getValueFromVcard('value', linkedUri).split('tel:+')[1];
+      const phones = [];
+      linkedUri.forEach(uri => {
+        phones.push(this.getValueFromVcard('value', uri).split('tel:')[1]);
+      });
+      console.log('phones', phones);
+      return phones;
+      //return this.getValueFromVcard('value', linkedUri[1]).split('tel:')[1];
     }
   };
 
@@ -324,6 +350,14 @@ export class RdfService {
     const store = this.store.any($rdf.sym(webId || this.session.webId), namespace(node));
     if (store) {
       return store.value;
+    }
+    return '';
+  }
+
+  private getValuesFromNamespace(node: string, namespace: any, webId?: string): string[] | any {
+    const store = this.store.each($rdf.sym(webId || this.session.webId), namespace(node));
+    if (store) {
+      return store;
     }
     return '';
   }

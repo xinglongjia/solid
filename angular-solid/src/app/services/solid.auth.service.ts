@@ -72,6 +72,13 @@ export class AuthService {
 
   saveOldUserData = (profile: any) => {
     if (!localStorage.getItem('oldProfileData')) {
+      // console.log(profile);
+      for(let i = 0; i < profile.phone.length; i++) {
+        profile['phone'+ i] = profile.phone[i];
+
+      }
+      
+      //console.log(profile);
       localStorage.setItem('oldProfileData', JSON.stringify(profile));
     }
   }

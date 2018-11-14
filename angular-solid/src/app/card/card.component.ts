@@ -6,6 +6,7 @@ import { RdfService } from '../services/rdf.service';
 import { AuthService } from '../services/solid.auth.service';
 
 
+
 @Component({
   selector: 'app-card',
   templateUrl: './card.component.html',
@@ -29,6 +30,7 @@ export class CardComponent implements OnInit  {
     // Clear cached profile data
     // TODO: Remove this code and find a better way to get the old data
     localStorage.removeItem('oldProfileData');
+    
   }
 
   // Loads the profile from the rdf service and handles the response
@@ -38,6 +40,7 @@ export class CardComponent implements OnInit  {
       const profile = await this.rdf.getProfile();
       if (profile) {
         this.profile = profile;
+        console.log(profile);
         this.auth.saveOldUserData(profile);
       }
 
